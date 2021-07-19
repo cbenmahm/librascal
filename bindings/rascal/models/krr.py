@@ -65,10 +65,18 @@ class KRR(BaseIO):
             units["length"] = "AA"
         self.units = units
 
+        if len(self.weights.shape)==1:
+            self.is_scalar = True
+        else:
+            self.is_scalar = False
+
     def _get_property_baseline(self, managers):
         """build total baseline contribution for each prediction"""
         if self.target_type == "Structure":
-            Y0 = np.zeros(len(managers))
+            if self.is_scalar:
+                Y0 = np.zeros(len(managers))
+            else:
+                Y0 = np.zeros((len(managers), self.weights.shape[1]))
             for i_manager, manager in enumerate(managers):
                 if isinstance(manager, ase.Atoms):
                     numbers = manager.get_atomic_numbers()
@@ -81,7 +89,10 @@ class KRR(BaseIO):
             n_centers = 0
             for manager in managers:
                 n_centers += len(manager)
-            Y0 = np.zeros(n_centers)
+            if self.is_scalar:
+                Y0 = np.zeros(n_centers)
+            else:
+                Y0 = np.zeros((n_centers, self.weights.shape[1]))
             i_center = 0
             for manager in managers:
                 for center in manager:
@@ -118,7 +129,10 @@ class KRR(BaseIO):
                 )
             kernel = KNM
         Y0 = self._get_property_baseline(managers)
-        return Y0 + np.dot(kernel, self.weights).reshape((-1))
+        if self.is_scalar:
+            return Y0 + np.dot(kernel, self.weights).reshape((-1))
+        else:
+            return Y0 + np.dot(kernel, self.weights)
 
     def predict_forces(self, managers, KNM=None):
         """Predict negative gradients w.r.t atomic positions, e.g. forces, associated with the atomic structures in managers.
