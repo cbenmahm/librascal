@@ -132,7 +132,7 @@ class KRR(BaseIO):
         if self.is_scalar:
             return Y0 + np.dot(kernel, self.weights).reshape((-1))
         else:
-            return Y0 + np.dot(kernel, self.weights)
+            return Y0[0] + np.dot(kernel, self.weights)
 
     def predict_forces(self, managers, KNM=None):
         """Predict negative gradients w.r.t atomic positions, e.g. forces, associated with the atomic structures in managers.
