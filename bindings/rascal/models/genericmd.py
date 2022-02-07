@@ -11,7 +11,6 @@ import json
 from ..utils import BaseIO, load_obj, to_dict, from_dict
 from ..neighbourlist.structure_manager import AtomsList, unpack_ase
 
-
 class GenericMDCalculator:
 
     """Generic MD driver for a librascal model
@@ -138,7 +137,7 @@ class GenericMDCalculator:
 
 class FiniteTCalculator(GenericMDCalculator):
     
-    def __init__(self, model_json, is_periodic, xdos, temperature, structure_template, is_volume=None, nelectrons=None, atomic_numbers=None):
+    def __init__(self, model_json, is_periodic, xdos, temperature, structure_template, nelectrons=None, atomic_numbers=None):
         super().__init__(model_json, is_periodic, structure_template=structure_template, atomic_numbers=atomic_numbers)
         
         try:
@@ -155,11 +154,6 @@ class FiniteTCalculator(GenericMDCalculator):
             )
         self.nelectrons = float(nelectrons)
         self.nelectrons = self.nelectrons * self.natoms
-        if is_volume == None:
-            raise ValueError(
-                    "plase provide if the model is volume scaled or not"
-                    )
-        self.is_volume = bool(is_volume)
 
         # Duplicate the weights and the self_contributions of model so it can be restored at the end of the force calculation
         self.unmodified_weights = deepcopy(self.model.weights)
@@ -207,12 +201,9 @@ class FiniteTCalculator(GenericMDCalculator):
             structure = unpack_ase(self.atoms, wrap_pos=True)
             structure.pop("center_atoms_mask")
             self.manager[0].update(**structure)
-        if self.is_volume:
-            volume = at.get_volume()
-            self.model.weights = self.model.weights * volume
         # Compute representations and evaluate model
         self.manager = self.representation.transform(self.manager)
-
+        
         # Predict the DOS of the frame
         pred_dos = self.model.predict(self.manager)[0]
         self.dos_pred = pred_dos 
@@ -270,7 +261,7 @@ class FiniteTCalculator(GenericMDCalculator):
         # band energy at T>0
         dos_self_contributions = self.unmodified_self_contributions
         for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.xdos * fd_T * self.unmodified_self_contributions[key],#dos_self_contributions[key],
+            self.model.self_contributions[key] = trapezoid(self.xdos * fd_T * self.unmodified_self_contributions[key],
                     self.xdos)
         self.model.weights = weights_band_T
         band_T = self.model.predict(self.manager)
@@ -282,7 +273,7 @@ class FiniteTCalculator(GenericMDCalculator):
 
         # band energy at T=0
         for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.xdos * fd_0 *self.unmodified_self_contributions[key],# dos_self_contributions[key],
+            self.model.self_contributions[key] = trapezoid(self.xdos * fd_0 *self.unmodified_self_contributions[key],
                     self.xdos)
         self.model.weights = weights_band_0
         band_0 = self.model.predict(self.manager)
@@ -339,9 +330,7 @@ class FiniteTCalculator(GenericMDCalculator):
         self.model.weights = deepcopy(self.unmodified_weights)
         self.model.self_contributions = deepcopy(self.unmodified_self_contributions)
         self.model.is_scalar = False
-        #self.model = load_obj(self.model_filename)
-        #extras = json.dumps(res)
-        return energy, force, -stress, "" 
+        return energy, force, stress, "" 
 
 # Some helper functions for the finite temperature calculator
 def fd_distribution(x, mu, beta):
