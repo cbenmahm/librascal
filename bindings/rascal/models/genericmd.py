@@ -155,9 +155,8 @@ class FiniteTCalculator(GenericMDCalculator):
                 "please enter the number of valence electrons per atom"
             )
         self.nelectrons = float(nelectrons)
-        print("I initialize nelectrons to", nelectrons)
         self.nelectrons = self.nelectrons * self.natoms
-
+        self.xdos = np.load(xdos)
         if contribution not in ["all", "band_T", "band_0", "entr_T", "entr_0"]:
             raise ValueError(
                 "please provide the correct contribution, choose between: all, band_T, band_0, entr_T and entr_0"
