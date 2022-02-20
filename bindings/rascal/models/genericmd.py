@@ -1,6 +1,8 @@
 """Generic calculator-style interface for MD"""
+from re import I
 import ase.io
 from ase.units import kB
+from matplotlib.pyplot import get
 
 import numpy as np
 from scipy.integrate import trapezoid
@@ -137,7 +139,7 @@ class GenericMDCalculator:
 
 class FiniteTCalculator(GenericMDCalculator):
     
-    def __init__(self, model_json, is_periodic, xdos, temperature, structure_template, nelectrons=None, atomic_numbers=None):
+    def __init__(self, model_json, is_periodic, xdos, temperature, structure_template, nelectrons=None, atomic_numbers=None, contribution="all"):
         super().__init__(model_json, is_periodic, structure_template=structure_template, atomic_numbers=atomic_numbers)
         
         try:
@@ -153,11 +155,18 @@ class FiniteTCalculator(GenericMDCalculator):
                 "please enter the number of valence electrons per atom"
             )
         self.nelectrons = float(nelectrons)
+        print("I initialize nelectrons to", nelectrons)
         self.nelectrons = self.nelectrons * self.natoms
 
+        if contribution not in ["all", "band_T", "band_0", "entr_T", "entr_0"]:
+            raise ValueError(
+                "please provide the correct contribution, choose between: all, band_T, band_0, entr_T and entr_0"
+            )
+        self.contribution = contribution
+
         # Duplicate the weights and the self_contributions of model so it can be restored at the end of the force calculation
-        self.unmodified_weights = deepcopy(self.model.weights)
-        self.unmodified_self_contributions = deepcopy(self.model.self_contributions)
+        self.model.unmodified_weights = deepcopy(self.model.weights)
+        self.model.unmodified_self_contributions = deepcopy(self.model.self_contributions)
 
 
     def calculate(self, positions, cell_matrix):
@@ -205,132 +214,45 @@ class FiniteTCalculator(GenericMDCalculator):
         self.manager = self.representation.transform(self.manager)
         
         # Predict the DOS of the frame
-        pred_dos = self.model.predict(self.manager)[0]
-        self.dos_pred = pred_dos 
-        # Compute the Fermi level (T>0) and the Fermi energy (T=0)
-        # TODO: implement the T=0 case using the polylog functions
-        # for now use T=200 as T=0 (the difference is negligigble)
+        self.dos_pred = self.model.predict(self.manager)[0]
+        if self.contribution == "band_0":
+            energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            return -energy, -force, -stress, ""
+        
+        elif self.contribution == "band_T":
+            energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            return energy, force, stress, ""
+        
+        elif self.contribution == "entr_0":
+            energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            return -energy, -force, -stress, ""
+        
+        elif self.contribution == "entr_T":
+            energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            return energy, force, stress, ""
+        
+        else:
+            energy_band_0, force_band_0, stress_band_0 = get_band_contribution(self.model, self.manager,pred_dos, self.beta_0, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            
+            energy_band_T, force_band_T, stress_band_T = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            
+            energy_entr_0, force_entr_0, stress_entr_0 = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            
+            energy_entr_T, force_entr_T, stress_entr_T = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
+            reset_model(self.model) 
+            
+            energy = energy_band_T - energy_band_0 + energy_entr_T - energy_entr_0
+            force = force_band_T - force_band_0 + force_entr_T - force_entr_0
+            stress = stress_band_T - stress_band_0 + stress_entr_T - stress_entr_0
 
-        mu_T = getmu(pred_dos, self.beta, self.xdos, n=self.nelectrons)
-        mu_0 = getmu(pred_dos, self.beta_0, self.xdos, n=self.nelectrons)
-
-        # Compute the derivative of the FD occupation with the Fermi level
-        deriv_fd_T = derivative_fd_fermi(self.xdos, mu_T, self.beta)
-        deriv_fd_0 = derivative_fd_fermi(self.xdos, mu_0, self.beta_0)
-
-        # Compute the FD occupations
-        fd_T = fd_distribution(self.xdos, mu_T, self.beta)
-        fd_0 = fd_distribution(self.xdos, mu_0, self.beta_0)
-
-        # Compute the "shift" terms appearing in band enegy and entropy grads
-        shift_T = get_shift(pred_dos, self.xdos, deriv_fd_T)
-        shift_0 = get_shift(pred_dos, self.xdos, deriv_fd_0)
-
-        # Compute the weights for the band energy at T>0 and T=0
-        weights_band_T = trapezoid(self.xdos * fd_T * self.model.weights,
-                                     self.xdos, axis=1)
-        weights_band_0 = trapezoid(self.xdos * fd_0 * self.model.weights,
-                                     self.xdos, axis=1) 
-
-        # Compute the weights for the band energy forces at T>0 and T=0
-        f_weights_band_T = trapezoid((self.xdos - shift_T) * fd_T * self.model.weights,
-                                     self.xdos, axis=1)
-        f_weights_band_0 = trapezoid((self.xdos - shift_0) * fd_0 * self.model.weights,
-                                     self.xdos, axis=1)
-
-        # Compute the weights for the entropy contribution at T>0 and T=0
-        s_T, x_mask_T = get_entropy(fd_T)
-        weights_entr_T = trapezoid(s_T * self.model.weights[:, x_mask_T], self.xdos[x_mask_T], axis=1)
-        weights_entr_T *= (-kB)
-
-        s_0, x_mask_0 = get_entropy(fd_0)
-        weights_entr_0 = trapezoid(s_0 * self.model.weights[:, x_mask_0], self.xdos[x_mask_0], axis=1)
-        weights_entr_0 *= (-kB)
-
-        # Compute the weights for the entropy forces at T>0 and T=0
-        f_weights_entr_T = weights_entr_T
-        f_weights_entr_T += (kB * self.beta * (mu_T - shift_T) * trapezoid(fd_T * self.model.weights, self.xdos, axis=1))
-
-        f_weights_entr_0 = weights_entr_0
-        f_weights_entr_0 += (kB * self.beta_0 * (mu_0 - shift_0) * trapezoid(fd_0 * self.model.weights, self.xdos, axis=1))
-
-        # Compute all the contributions to the energy, the force and the stress
-        # Also compute all the self contribution terms
-        self.model.is_scalar = True
-
-        # band energy at T>0
-        dos_self_contributions = self.unmodified_self_contributions
-        for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.xdos * fd_T * self.unmodified_self_contributions[key],
-                    self.xdos)
-        self.model.weights = weights_band_T
-        band_T = self.model.predict(self.manager)
-
-        self.model.weights = f_weights_band_T
-        band_T_forces = self.model.predict_forces(self.manager)
-        band_T_stress_v = self.model.predict_stress(self.manager)
-        band_T_stress = extract_stress_matrix(band_T_stress_v)
-
-        # band energy at T=0
-        for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.xdos * fd_0 *self.unmodified_self_contributions[key],
-                    self.xdos)
-        self.model.weights = weights_band_0
-        band_0 = self.model.predict(self.manager)
-
-        self.model.weights = f_weights_band_0
-        band_0_forces = self.model.predict_forces(self.manager)
-        band_0_stress_v = self.model.predict_stress(self.manager)
-        band_0_stress = extract_stress_matrix(band_0_stress_v)
-
-        # entropy contribution energy at T>0
-        for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.unmodified_self_contributions[key][x_mask_T] * s_T,
-                                                           self.xdos[x_mask_T])
-            self.model.self_contributions[key] *= (-kB)
-            self.model.self_contributions[key] *= (-self.temperature)
-        self.model.weights = -self.temperature * weights_entr_T
-        entr_T = self.model.predict(self.manager)
-
-        self.model.weights = -self.temperature * f_weights_entr_T
-        entr_T_forces = self.model.predict_forces(self.manager)
-        entr_T_stress_v = self.model.predict_stress(self.manager)
-        entr_T_stress = extract_stress_matrix(entr_T_stress_v)
-
-        # entropy contribution energy at T=0
-        # TODO remove this after using the polylog functions
-        for key in self.model.self_contributions.keys():
-            self.model.self_contributions[key] = trapezoid(self.unmodified_self_contributions[key][x_mask_0] * s_0,
-                                                           self.xdos[x_mask_0])
-            self.model.self_contributions[key] *= (-kB)
-            self.model.self_contributions[key] *= (-200)
-        self.model.weights = -200 * weights_entr_0
-        entr_0 = self.model.predict(self.manager)
-
-        self.model.weights = -200 * f_weights_entr_0
-        entr_0_forces = self.model.predict_forces(self.manager)
-        entr_0_stress_v = self.model.predict_stress(self.manager)
-        entr_0_stress = extract_stress_matrix(entr_0_stress_v)
-
-        energy = band_T - band_0 + (entr_T - entr_0)
-        force = band_T_forces - band_0_forces + (entr_T_forces - entr_0_forces)
-        stress = band_T_stress - band_0_stress + (entr_T_stress - entr_0_stress)
-
-        res = {
-            "band_energy(T>0)": band_T,
-            "band_energy(T=0)": band_0,
-            "entropy_T": entr_T,
-            "entropy_0": entr_0,
-            #"f_band_energy(T>0)": band_T_forces,
-            #"f_band_energy(T=0)": band_0_forces,
-            #"f_entropy(T>0)": entr_T_forces - entr_0_forces,
-        }
-
-        # Restore the model
-        self.model.weights = deepcopy(self.unmodified_weights)
-        self.model.self_contributions = deepcopy(self.unmodified_self_contributions)
-        self.model.is_scalar = False
-        return energy, force, stress, "" 
+            return energy, force, stress, ""
 
 # Some helper functions for the finite temperature calculator
 def fd_distribution(x, mu, beta):
@@ -395,3 +317,73 @@ def extract_stress_matrix(stress_voigt):
     stress_matrix += np.triu(stress_matrix).T
     stress_matrix[np.diag_indices_from(stress_matrix)] *= 0.5
     return stress_matrix
+
+def get_band_contribution(model, manager, dos, beta, nelectrons, xdos):
+    
+    mu = getmu(dos, beta, xdos, n=nelectrons)
+    
+    deriv_fd = derivative_fd_fermi(xdos, mu, beta)
+    fd = fd_distribution(xdos, mu, beta)
+
+    shift = get_shift(dos, xdos, deriv_fd)
+
+    weights = trapezoid(xdos * fd * model.unmodified_weights,
+                                     xdos, axis=1)
+    f_weights = trapezoid((xdos - shift) * fd * model.unmodified_weights,
+                                     xdos, axis=1)
+    
+    model.is_scalar = True
+
+    for key in model.self_contributions.keys():
+            model.self_contributions[key] = trapezoid(xdos * fd * model.unmodified_self_contributions[key],
+                    xdos)
+    
+    model.weights = weights
+    energy = model.predict(manager)
+
+    model.weights = f_weights
+    force = model.predict_forces(manager)
+
+    stress = model.predict_stress(manager)
+    stress = extract_stress_matrix(stress)
+
+    return energy, force, stress
+
+def get_entropy_contribution(model, manager, dos, beta, temperature, nelectrons, xdos):
+
+    mu = getmu(dos, beta, xdos, n=nelectrons)
+    
+    deriv_fd = derivative_fd_fermi(xdos, mu, beta)
+    fd = fd_distribution(xdos, mu, beta)
+
+    shift = get_shift(dos, xdos, deriv_fd)
+
+    s, x_mask = get_entropy(fd)
+
+    model.is_scalar = True
+
+    for key in model.self_contributions.keys():
+            model.self_contributions[key] = trapezoid(model.unmodified_self_contributions[key][x_mask] * s,
+                                                           xdos[x_mask])
+            model.self_contributions[key] *= (-kB)
+            model.self_contributions[key] *= (-temperature)
+    
+    weights = trapezoid(s * model.unmodified_weights[:, x_mask], xdos[x_mask], axis=1)
+    weights *= (-kB)
+    model.weights = -temperature * weights
+    energy = model.predict(manager)
+
+    f_weights = weights
+    f_weights += (kB * beta * (mu - shift) * trapezoid(fd * model.unmodified_weights, xdos, axis=1))
+    model.weights = -temperature * f_weights
+    force = model.predict_forces(manager)
+
+    stress = model.predict_stress(manager)
+    stress = extract_stress_matrix(stress)
+
+    return energy, force, stress
+
+def reset_model(model):
+        model.weights = deepcopy(model.unmodified_weights)
+        model.self_contributions = deepcopy(model.unmodified_self_contributions)
+        model.is_scalar = False
