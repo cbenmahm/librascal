@@ -216,22 +216,22 @@ class FiniteTCalculator(GenericMDCalculator):
         if self.contribution == "band_0":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, ""
+            return energy, force, stress, json_string(self.contribution, energy) 
         
         elif self.contribution == "band_T":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, ""
+            return energy, force, stress, json_string(self.contribution, energy)
         
         elif self.contribution == "entr_0":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, ""
+            return energy, force, stress, json_string(self.contribution, energy)
         
         elif self.contribution == "entr_T":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, ""
+            return energy, force, stress, json_string(self.contribution, energy)
         
         else:
             energy_band_0, force_band_0, stress_band_0 = get_band_contribution(self.model, self.manager,pred_dos, self.beta_0, self.nelectrons, self.xdos)
@@ -250,7 +250,7 @@ class FiniteTCalculator(GenericMDCalculator):
             force = force_band_T - force_band_0 + force_entr_T - force_entr_0
             stress = stress_band_T - stress_band_0 + stress_entr_T - stress_entr_0
 
-            return energy, force, stress, ""
+            return energy, force, stress, json_string(self.contribution, energy)
 
 # Some helper functions for the finite temperature calculator
 def fd_distribution(x, mu, beta):
@@ -380,6 +380,9 @@ def get_entropy_contribution(model, manager, dos, beta, temperature, nelectrons,
     stress = extract_stress_matrix(stress)
 
     return energy, force, stress
+
+def json_string(label, quant):
+    return json.dumps({label: "{:.8f}".format(quant)})
 
 def reset_model(model):
         model.weights = deepcopy(model.unmodified_weights)
