@@ -14,7 +14,7 @@ librascal is currently considered a standalone code. However, we aim to
 provide enough flexibility to interface it with other codes such as
 LAMMPS and PLUMED-2.0. It can be used as a C++ library as well as a
 python module. To be able to call it from python, we have used the
-pybind11 library.
+pybind11_ library.
 
 Although at the moment is a serial-only code, we aim to write it in MPI
 so that it will be possible to take advantage of parallelization to
@@ -24,13 +24,14 @@ collection (for large collections of small structures), or over components of a
 representation (for representations with a large number of independent functions
 or components).
 
-It comes with a GNU Lesser General Public License of version 3, which
-means that it can be modified and freely distributed, although we take
-no responsibility for its misuse.
+librascal is distributed under the GNU Lesser General Public License version 2.1
+or later, at your convenience. This means that it can be modified and freely
+distributed, although we take no responsibility for its misuse.
 
 For more information, have a look at the documentation_!
 
-.. _documentation: https://cosmo-epfl.github.io/librascal/
+.. _documentation: https://lab-cosmo.github.io/librascal/
+.. _pybind11: https://pybind11.readthedocs.io
 
 Development
 -----------
@@ -79,25 +80,32 @@ following packages installed:
 +-------------+--------------------+
 | numpy       | 1.13 or higher     |
 +-------------+--------------------+
+| scipy       | 1.4.0 or higher    |
++-------------+--------------------+
 | ASE         | 3.18 or higher     |
 +-------------+--------------------+
 
-Other necessary packages (such as Eigen and PyBind11) are downloaded
+Other necessary packages (such as Eigen and pybind11) are downloaded
 automatically when compiling Rascal.
 
-The following packages are required for building some optional features:
+The following packages are required for some optional features:
 
-+------------------+-------------+--------------------+
-| Feature          | Package     | Required version   |
-+==================+=============+====================+
-| Documentation    | pandoc      | (latest)           |
-+------------------+-------------+--------------------+
-|                  | sphinx      | 2.1.2 or later     |
-+------------------+-------------+--------------------+
-|                  | breathe     | 4.14.1 or later    |
-+------------------+-------------+--------------------+
-|                  | nbsphinx    | 0.8.1 or later     |
-+------------------+-------------+--------------------+
++--------------------------+-------------+--------------------+
+| Feature                  | Package     | Required version   |
++==========================+=============+====================+
+| Feature compression      | skcosmo     | 0.1.0 or later     |
++--------------------------+-------------+--------------------+
+| Rotational algebra       | sympy       | 1.4 or later       |
+| (Clebsch-Gordan coeffs.) |             |                    |
++--------------------------+-------------+--------------------+
+| Building documentation   | pandoc      | (latest)           |
++--------------------------+-------------+--------------------+
+|                          | sphinx      | 2.1.2 or later     |
++--------------------------+-------------+--------------------+
+|                          | breathe     | 4.14.1 or later    |
++--------------------------+-------------+--------------------+
+|                          | nbsphinx    | 0.8.1 or later     |
++--------------------------+-------------+--------------------+
 
 Compiling
 ~~~~~~~~~
@@ -107,7 +115,7 @@ supporting C++14. During the configuration, it will automatically try to
 download the external libraries on which it depends:
 
 -  Eigen
--  Pybind11
+-  pybind11
 -  Boost (only the unit test framework library)
 -  Python3
 
@@ -268,8 +276,8 @@ tools with:
    sudo apt-get install clang-format
    pip install black
 
-The automatic formating of the c++ and python files can be
-trigered by:
+The automatic formatting of the c++ and python files can be
+triggered by:
 
 .. code:: shell
 
@@ -280,7 +288,7 @@ trigered by:
 
 Please use these tools with caution as they can potentially
 introduce unwanted changes to the code. If code needs to be
-specifically excluded from auto formatting, e.g. a matrix which
+specifically excluded from auto formatting, e.g. a matrix which
 should be human-readable, code comments tells the formatters to
 ignore lines:
 
@@ -333,7 +341,7 @@ in version control.  Use them only for tutorials or *stable* examples that
 are either meant to be run *interactively* or are meant to be processed by
 `sphinx` (`nbsphinx <https://nbsphinx.readthedocs.io/en/latest/>`_) for
 inclusion in the
-`tutorials page <https://cosmo-epfl.github.io/librascal/tutorials/tutorials.html>`_.
+`tutorials page <https://lab-cosmo.github.io/librascal/tutorials/tutorials.html>`_.
 
 Miscellaneous Information
 -------------------------

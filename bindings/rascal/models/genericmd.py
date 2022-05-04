@@ -134,7 +134,6 @@ class GenericMDCalculator:
         stress_matrix[tuple(zip(*self.matrix_indices_in_voigt_notation))] = stress_voigt
         # Symmetrize the stress matrix (replicate upper-diagonal entries)
         stress_matrix += np.triu(stress_matrix, k=1).T
-        #stress_matrix[np.diag_indices_from(stress_matrix)] *= 0.5
         return energy, forces, stress_matrix
 
 class FiniteTCalculator(GenericMDCalculator):

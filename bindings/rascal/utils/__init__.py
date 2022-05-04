@@ -8,14 +8,11 @@ from .io import (
     load_obj,
 )
 
-# Warning potential dependency loop: FPS imports models, which imports KRR,
-# which imports this file again
-from .fps import fps, FPSFilter
+from .filter import FPSFilter, CURFilter
 
 # function to redirect c++'s standard output to python's one
 from ..lib._rascal.utils import ostream_redirect
 from copy import deepcopy
-from .cur import CURFilter
 from .scorer import get_score, print_score
 from .radial_basis import (
     get_optimal_radial_basis_hypers,
@@ -24,4 +21,17 @@ from .radial_basis import (
     get_radial_basis_projections,
     radial_basis_functions_dvr,
     radial_basis_functions_gto,
+)
+
+from .cg_utils import (
+    WignerDReal,
+    ClebschGordanReal,
+    spherical_expansion_reshape,
+    spherical_expansion_conjugate,
+    sph_real_conjugate,
+    lm_slice,
+    real2complex_matrix,
+    xyz_to_spherical,
+    spherical_to_xyz,
+    compute_lambda_soap,
 )

@@ -1,36 +1,3 @@
-# =============================================================================
-# file   CMakeLists.txt
-#
-# @author Alexander Goscinski <alexander.goscinski@epfl.ch>
-# @author Till Junge <till.junge@epfl.ch>
-# @author Felix Musil <felix.musil@epfl.ch>
-# @author Markus Stricker <markus.stricker@epfl.ch>
-#
-# @date   17 Jan 2019
-#
-# @brief  Main configuration file
-#
-# @section LICENSE
-#
-# Copyright © 2018 Till Junge, Felix Musil, Markus Stricker, COSMO (EPFL), LAMMM
-# (EPFL)
-#
-# Rascal is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public License as
-# published by the Free Software Foundation, either version 3, or (at
-# your option) any later version.
-#
-# Rascal is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with Rascal; see the file COPYING. If not, write to the
-# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-# Boston, MA 02111-1307, USA.
-# =============================================================================
-
 cmake_minimum_required(VERSION 3.0)
 
 # https://cmake.org/pipermail/cmake/2008-September/023808.html
@@ -76,10 +43,6 @@ option(BUILD_SANDBOX "If on, builds the sandbox" OFF)
 
 set(INSTALL_PATH "" CACHE STRING "Path to install the libraries")
 
-SET(TYPE_ARCHITECTURE "native" CACHE STRING
-    "Choose the type of architecture to compile to in release mode."
-)
-
 ########## COMPILATION FLAGS ##########
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Weffc++ -Wno-non-virtual-dtor")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
@@ -90,19 +53,11 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
 
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Og")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
-
-    # Add -march=${TYPE_ARCHITECTURE} (-march=native by default) to the release
-    # build flags
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=${TYPE_ARCHITECTURE}")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=${TYPE_ARCHITECTURE}")
-
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -march=${TYPE_ARCHITECTURE}")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=${TYPE_ARCHITECTURE}")
 endif()
 
 ########## START CONFIGURATION ##########
 
-# set the name of the c++ libraries
+# set the name of the c++ libraries
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR
     CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   set(LIBRASCAL_NAME "rascal-dbg")
@@ -124,7 +79,7 @@ endif()
 if(BUILD_BINDINGS)
   find_package(PythonLibsNew 3 MODULE REQUIRED)
 
-  # warning about potential side effects of the installation of the python library
+  # warning about potential side effects of the installation of the python library
   if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR
       CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     if(NOT PYTHON_IS_DEBUG)

@@ -11,20 +11,19 @@
  *
  * Copyright  2018  Felix Musil, Max Veit, COSMO (EPFL), LAMMM (EPFL)
  *
- * Rascal is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3, or (at
- * your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * Rascal is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this software; see the file LICENSE. If not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "rascal/math/spherical_harmonics.hh"
@@ -134,7 +133,7 @@ void SphericalHarmonics::compute_assoc_legendre_polynom(double cos_theta) {
 
 void SphericalHarmonics::calc(
     const Eigen::Ref<const Eigen::Vector3d> & direction,
-    bool calculate_derivatives) {
+    bool calculate_derivatives, bool conjugate) {
   Eigen::Vector3d direction_normed;
   if (std::abs((direction[0] * direction[0] + direction[1] * direction[1] +
                 direction[2] * direction[2]) -
@@ -159,7 +158,11 @@ void SphericalHarmonics::calc(
     cos_phi = direction_normed[0] / sqrt_xy;
     sin_phi = direction_normed[1] / sqrt_xy;
   }
-
+  if (conjugate) {
+    // if we require the complex conjugate of Y^m_l,
+    // simply evaluates Ylm(theta,-phi) (cosine doesn't change)
+    sin_phi *= -1;
+  }
   this->compute_assoc_legendre_polynom(cos_theta);
   this->compute_cos_sin_angle_multiples(cos_phi, sin_phi);
 
@@ -186,14 +189,26 @@ void SphericalHarmonics::calc(
 
 void SphericalHarmonics::compute_cos_sin_angle_multiples(double cos_phi,
                                                          double sin_phi) {
+  // computes iteratively a list of (cos(m phi), sin(m phi))
+  // uses a modified iteration that yields (-1)^m(cos(m phi), sin(m phi)),
+  // that has the right sign to get real-valued sph with the usual
+  // phase convention
   for (size_t m_count{0}; m_count < this->max_angular + 1; m_count++) {
     if (m_count == 0) {
       this->cos_sin_m_phi.row(m_count) << 1.0, 0.0;
     } else if (m_count == 1) {
-      this->cos_sin_m_phi.row(m_count) << cos_phi, sin_phi;
+      // standard iter:
+      // this->cos_sin_m_phi.row(m_count) << cos_phi, sin_phi;
+      this->cos_sin_m_phi.row(m_count) << -cos_phi, -sin_phi;
     } else {
+      /* standard iter:
       this->cos_sin_m_phi.row(m_count) =
           2.0 * cos_phi * this->cos_sin_m_phi.row(m_count - 1) -
+          this->cos_sin_m_phi.row(m_count - 2);
+      */
+
+      this->cos_sin_m_phi.row(m_count) =
+          -2.0 * cos_phi * this->cos_sin_m_phi.row(m_count - 1) -
           this->cos_sin_m_phi.row(m_count - 2);
     }
   }
