@@ -216,7 +216,7 @@ class FiniteTCalculator(GenericMDCalculator):
         if self.contribution == "band_0":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return -energy, -force, -stress, ""
+            return energy, force, stress, ""
         
         elif self.contribution == "band_T":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
@@ -226,7 +226,7 @@ class FiniteTCalculator(GenericMDCalculator):
         elif self.contribution == "entr_0":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return -energy, -force, -stress, ""
+            return energy, force, stress, ""
         
         elif self.contribution == "entr_T":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
