@@ -215,23 +215,27 @@ class FiniteTCalculator(GenericMDCalculator):
         self.dos_pred = self.model.predict(self.manager)[0]
         if self.contribution == "band_0":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.nelectrons, self.xdos)
-            reset_model(self.model) 
-            return energy, force, stress, json_string(self.contribution, energy) 
+            reset_model(self.model)
+            extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
+            return energy, force, stress, extras 
         
         elif self.contribution == "band_T":
             energy, force, stress = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, json_string(self.contribution, energy)
+            extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
+            return energy, force, stress, extras
         
         elif self.contribution == "entr_0":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, json_string(self.contribution, energy)
+            extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
+            return energy, force, stress, extras
         
         elif self.contribution == "entr_T":
             energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
             reset_model(self.model) 
-            return energy, force, stress, json_string(self.contribution, energy)
+            extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
+            return energy, force, stress, extras
         
         else:
             energy_band_0, force_band_0, stress_band_0 = get_band_contribution(self.model, self.manager,pred_dos, self.beta_0, self.nelectrons, self.xdos)
@@ -249,8 +253,10 @@ class FiniteTCalculator(GenericMDCalculator):
             energy = energy_band_T - energy_band_0 + energy_entr_T - energy_entr_0
             force = force_band_T - force_band_0 + force_entr_T - force_entr_0
             stress = stress_band_T - stress_band_0 + stress_entr_T - stress_entr_0
+            
+            extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
 
-            return energy, force, stress, json_string(self.contribution, energy)
+            return energy, force, stress, extras
 
 # Some helper functions for the finite temperature calculator
 def fd_distribution(x, mu, beta):
@@ -348,6 +354,7 @@ def get_band_contribution(model, manager, dos, beta, nelectrons, xdos):
     return energy, force, stress
 
 def get_entropy_contribution(model, manager, dos, beta, temperature, nelectrons, xdos):
+    """ computes the contribution from (-TS)"""
 
     mu = getmu(dos, beta, xdos, n=nelectrons)
     
@@ -381,8 +388,11 @@ def get_entropy_contribution(model, manager, dos, beta, temperature, nelectrons,
 
     return energy, force, stress
 
-def json_string(label, quant):
-    return json.dumps({label: "{:.8f}".format(quant)})
+def json_string(label, energy, force, stress, dos):
+    return json.dumps({label+"energy": "{:.8f}".format(energy[0]),
+                       label+"DOS": dos.tolist(),
+                       label+"force": force.flatten().tolist(),
+                       label+"stress": stress.flatten().tolist()})
 
 def reset_model(model):
         model.weights = deepcopy(model.unmodified_weights)
