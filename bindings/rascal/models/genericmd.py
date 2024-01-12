@@ -147,7 +147,8 @@ class FiniteTCalculator(GenericMDCalculator):
             print("cannot load the energy axis, please make sure it is *.npy")
         self.temperature = float(temperature)
         self.beta = 1. / (self.temperature * kB)
-        self.beta_0 = 1. / (200 * kB) 
+	self.temp_0 = 200
+        self.beta_0 = 1. / (temp_0 * kB) 
         self.natoms = len(self.atoms)
         if nelectrons == None:
             raise ValueError(
@@ -226,7 +227,7 @@ class FiniteTCalculator(GenericMDCalculator):
             return energy, force, stress, extras
         
         elif self.contribution == "entr_0":
-            energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
+            energy, force, stress = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.temp_0, self.nelectrons, self.xdos)
             reset_model(self.model) 
             extras = json_string(self.contribution, energy, force, stress, self.dos_pred)
             return energy, force, stress, extras
@@ -244,7 +245,7 @@ class FiniteTCalculator(GenericMDCalculator):
             energy_band_T, force_band_T, stress_band_T = get_band_contribution(self.model, self.manager, self.dos_pred, self.beta, self.nelectrons, self.xdos)
             reset_model(self.model) 
             
-            energy_entr_0, force_entr_0, stress_entr_0 = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, 200, self.nelectrons, self.xdos)
+            energy_entr_0, force_entr_0, stress_entr_0 = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta_0, self.temp_0, self.nelectrons, self.xdos)
             reset_model(self.model) 
             
             energy_entr_T, force_entr_T, stress_entr_T = get_entropy_contribution(self.model, self.manager, self.dos_pred, self.beta, self.temperature, self.nelectrons, self.xdos)
